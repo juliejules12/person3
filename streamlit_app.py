@@ -1,15 +1,20 @@
 import streamlit as st
 import numpy as np
+import os
 from tensorflow.keras.models import load_model
-from PIL import Image
+from PIL import Image, ImageOps
+import requests
 
-model = load_model("mnist_cnn_model.h5")
+MODEL_PATH = "mnist_cnn_model.h5"
+MODEL_URL = "https://YOUR_PUBLIC_LINK_TO_MODEL"  # Replace this
 
-st.title("MNIST Digit Recognizer")
+# Download model if not present
+if not os.path.exists(MODEL_PATH):
+    with st.spinner("Downloading model..."):
+        r = requests.get(MODEL_URL)
+        with open(MODEL_PATH, "wb") as f:
+            f.write(r.content)
 
-uploaded_file = st.file_uploader("Upload a digit image", type=["png", "jpg"])
-if uploaded_file:
-    image = Image.open(uploaded_file).convert('L').resize((28,28))
-    img_array = np.array(image).reshape(1, 28, 28, 1) / 255.0
-    prediction = model.predict(img_array)
-    st.write(f"Prediction: **{np.argmax(prediction)}**")
+model = load_model(MODEL_PATH)
+
+# Rest of your Streamlit app below...
