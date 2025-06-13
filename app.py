@@ -1,30 +1,46 @@
-
-import streamlit as st
-from tensorflow.keras.models import load_model
+from flask import Flask, request, jsonify
+import tensorflow as tf
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
+import io
+import base64
 
-st.set_page_config(page_title="MNIST Digit Classifier")
+# Load the trained model
+model = tf.keras.models.load_model("model.h5")
 
-st.title("🧠 MNIST Digit Classifier")
-st.write("Upload a 28x28 image of a handwritten digit.")
+# Create the Flask app
+app = Flask(__name__)
 
-# Load the model
-@st.cache_resource
-def load_cnn_model():
-    return load_model("mnist_cnn_model.h5")
+@app.route('/')
+def home():
+    return "MNIST Digit Classifier API is running."
 
-model = load_cnn_model()
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        if 'file' in request.files:
+            # Case 1: image file uploaded
+            file = request.files['file']
+            img = Image.open(file).convert('L')
+        else:
+            # Case 2: base64 image in JSON
+            data = request.get_json(force=True)
+            img_data = base64.b64decode(data['image'])
+            img = Image.open(io.BytesIO(img_data)).convert('L')
 
-uploaded_file = st.file_uploader("Upload an image...", type=["png", "jpg", "jpeg"])
+        # Resize and preprocess image
+        img = img.resize((28, 28))
+        img_array = np.array(img) / 255.0
+        img_array = img_array.reshape(1, 28, 28, 1)
 
-if uploaded_file:
-    image = Image.open(uploaded_file).convert("L")
-    image = ImageOps.invert(image)  # Make background black and digit white
-    image = image.resize((28, 28))
-    img_array = np.array(image) / 255.0
-    img_array = img_array.reshape(1, 28, 28, 1)
+        # Predict
+        prediction = model.predict(img_array)
+        predicted_digit = int(np.argmax(prediction))
 
-    prediction = model.predict(img_array)
-    st.image(image, caption="Processed Image", width=150)
-    st.success(f"### Predicted Digit: {np.argmax(prediction)}")
+        return jsonify({'prediction': predicted_digit})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+if __name__ == '__main__':
+    app.run(debug=True)
